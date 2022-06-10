@@ -1,7 +1,7 @@
 import csv
-import pandas
+import pandas as pd
 
-df = pd.read_csv(https://data.cityofchicago.org/api/views/bbt9-ihrm/rows.csv?accessType=DOWNLOAD)
+df = pd.read_csv('https://data.cityofchicago.org/api/views/bbt9-ihrm/rows.csv?accessType=DOWNLOAD')
 
 df.to_csv('df.csv')
 
