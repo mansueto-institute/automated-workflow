@@ -12,4 +12,5 @@ jobs:
           channels: conda-forge
           environment-file: environment.yml
       - name: Ingest Data
+        shell: bash -l {0}
         run: python ingest.py
