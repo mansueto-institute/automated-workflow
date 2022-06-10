@@ -1,0 +1,14 @@
+name: test
+on: [push]
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 
+          conda-incubator/setup-miniconda@v2.1.1
+          actions/upload-artifact@v3
+         with:
+            miniconda-version: 'latest'
+            channels: conda-forge
+            environment-file: environment.yml
+      - run: python ingest.py
