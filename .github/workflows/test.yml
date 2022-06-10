@@ -14,5 +14,3 @@ jobs:
       - name: Ingest Data
         shell: bash -l {0}
         run: python ingest.py
-      - name: Commit files
-        id: commit
