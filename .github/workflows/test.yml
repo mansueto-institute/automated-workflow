@@ -6,7 +6,6 @@ jobs:
     steps:
       - uses: 
           conda-incubator/setup-miniconda@v2.1.1
-          actions/upload-artifact@v3
          with:
             miniconda-version: 'latest'
             channels: conda-forge
