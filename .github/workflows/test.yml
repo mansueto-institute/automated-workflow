@@ -23,12 +23,12 @@ jobs:
   steps:
     - uses: actions/checkout@v2
     - name: Create compute environment
-        uses: conda-incubator/setup-miniconda@v2.1.1
-        with:
-          miniconda-version: 'latest'
-          channels: conda-forge
-          environment-file: environment_compute.yml
-    - name Download From AWS
+      uses: conda-incubator/setup-miniconda@v2.1.1
+      with:
+        miniconda-version: 'latest'
+        channels: conda-forge
+        environment-file: environment_compute.yml
+    - name: Download From AWS
         shell: bash -l {0}
         run: python aws.py download --bucket ${{ secrets.AWS_BUCKET }} --key df.csv --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} --path df.csv
     - name: Run Computation
