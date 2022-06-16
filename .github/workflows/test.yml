@@ -15,4 +15,5 @@ jobs:
         shell: bash -l {0}
         run: python ingest.py
       - name: AWS upload
+        shell: bash -l {0}
         run: python aws_upload.py --bucket ${{ secrets.AWS_BUCKET }} --key df.csv --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} --path df.csv
