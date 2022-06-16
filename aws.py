@@ -36,4 +36,4 @@ if __name__ == "__main__":
             Key=args.key
         )
 
-    print response
+    print(response)
