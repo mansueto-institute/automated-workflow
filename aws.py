@@ -5,13 +5,13 @@ import sys
 
 def get_client(client_type: str, access_key: str, secret_key: str) -> boto3.client:
     """
-    Authneticates session and gets correct per client type argparse arguments..
+    Authneticates session and gets correct client type per argparse arguments.
     Inputs:
         client_type (str): type of boto3 client to init.
         acces_key (str): AWS acces key
         secret_key (str): AWS secret key
     Ouputs:
-        client(boto3.session.client): session with correct service
+        client(boto3.client): session with correct service
     """
 
     session = boto3.Session(
@@ -24,12 +24,12 @@ def get_client(client_type: str, access_key: str, secret_key: str) -> boto3.clie
     return client
 
 
-def file_actions(client: boto3.session.client, file_function: str):
+def file_actions(client: boto3.client, file_function: str):
     """
     Determines whether uploading/downloading to AWS
     and runs the correct function from the client.
     Inputs:
-        client (boto3.session.client): client to fetch functions from
+        client (boto3.client): client to fetch functions from
         file_function (str): 'upload' or 'download', from args.action.
     Outputs:
         response: response from the AWS bucket
