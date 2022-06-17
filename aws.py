@@ -3,7 +3,7 @@ import boto3
 import sys
 
 
-def get_client(client_type: str, access_key: str, secret_key: str) -> boto3.session.client:
+def get_client(client_type: str, access_key: str, secret_key: str) -> boto3.client:
     """
     Authneticates session and gets correct per client type argparse arguments..
     Inputs:
