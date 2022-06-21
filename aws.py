@@ -19,7 +19,10 @@ def get_client(client_type: str, access_key: str, secret_key: str) -> boto3.clie
         aws_secret_access_key=secret_key,
     )
 
-    client = session.client(client_type)
+    if client_type == 'batch':
+        client = session.client(client_type, region_name='us-east-2')
+    else:
+        client = session.client(client_type)
 
     return client
 
@@ -45,6 +48,91 @@ def file_actions(client: boto3.client, file_function: str):
 
     return response
 
+def create_job_criterion(batch_client: boto3.client, iam_client: boto3.client):
+    """
+    Creates a compute environment, a job definition,
+    a job queue, and starts a batch job on an Spot instance.
+    Inputs:
+        client (boto3.client): boto3 batch client
+    """
+
+    response = batch_client.create_compute_environment(
+    computeEnvironmentName='compute_env',
+    type='MANAGED',
+    state='ENABLED',
+    computeResources={
+        'type': 'SPOT',
+        'allocationStrategy': 'SPOT_CAPACITY_OPTIMIZED',
+        'maxvCpus': 256,
+        'desiredvCpus': 123,
+        'instanceTypes': [
+            'optimal',
+        ],
+        'imageId': 'string',
+        'subnets': [
+            'string',
+        ],
+        'bidPercentage': 50,
+        'spotIamFleetRole': 'string'
+    },
+    serviceRole='string'
+    )
+
+    response = batch_client.create_job_queue(
+    jobQueueName='compute_env_queue',
+    state='ENABLED',
+    priority=1,
+    computeEnvironmentOrder=[
+        {
+            'order': 100,
+            'computeEnvironment': 'compute_env'
+        },
+    ],
+)
+
+    compute_role = iam.get_role(RoleName='computeRole')
+
+    response = client.register_job_definition(
+    jobDefinitionName='compute_job_definition',
+    type='container',
+    containerProperties={
+        'image': 'angwar26/testrepo:latest',
+        'memory': 256,
+        'vcpus': 16,
+        'jobRoleArn': compute_role['Role']['Arn'],
+        'executionRoleArn': compute_role['Role']['Arn'],
+        'environment': [
+            {
+                'name': 'AWS_DEFAULT_REGION',
+                'value': 'ap-northeast-1',
+            }
+        ]
+    },
+)
+
+
+
+def check_criterion(batch_client: boto3.client, iam_client: boto3.client):
+    env_response = batch_client.describe_compute_environments(
+        computeEnvironments=[
+            'compute_env',
+            ]
+    )
+    job_response = batch_client.describe_job_definition(
+    )
+    queue_response = batch_client.describe_job_definition(
+
+    )
+
+
+
+def run_job(batch_client: boto3.client):
+
+    response = client.submit_job(
+        jobDefinition='compute_job_definition',
+        jobName='job',
+        jobQueue='compute_env_queue'
+)
 
 if __name__ == "__main__":
 
@@ -78,5 +166,7 @@ if __name__ == "__main__":
         client = get_client('s3', args.access, args.secret)
         response = file_actions(client, args.action)
     else:
-        client = get_client('batch', args.access, args.secret)
-        pass
+        batch_client = get_client('batch', args.access, args.secret)
+        iam_client = get_client('iam', args.access, args.secret)
+
+        create_job(batch_client, iam_client)

@@ -16,7 +16,8 @@ jobs:
         run: python ingest.py
       - name: Upload to AWS
         shell: bash -l {0}
-        run: python aws.py upload --bucket ${{ secrets.AWS_BUCKET }} --key df.csv --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} --path df.csv
+        run: |
+        python aws.py upload --bucket ${{ secrets.AWS_BUCKET }} --key df.csv --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} --path df.csv
   compute:
     needs: ingest
     runs-on: ubuntu-latest
@@ -30,10 +31,44 @@ jobs:
           environment-file: environment_compute.yml
       - name: Download From AWS
         shell: bash -l {0}
-        run: python aws.py download --bucket ${{ secrets.AWS_BUCKET }} --key df.csv --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} --path df.csv
+        run: |
+        python aws.py download --bucket ${{ secrets.AWS_BUCKET }} --key df.csv --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} --path df.csv
       - name: Run Computation
         shell: bash -l {0}
-        run: python compute.py
+        run: |
+        python compute.py
       - name: Upload to AWS
         shell: bash -l {0}
-        run: python aws.py upload --bucket ${{ secrets.AWS_BUCKET }} --key df_mod.csv --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} --path df.csv
+        run: |
+        python aws.py upload --bucket ${{ secrets.AWS_BUCKET }} --key df_mod.csv --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} --path df.csv
+  build_docker:
+      runs-on: ubuntu-latest
+      steps:
+      - name: Set up Docker Buildx
+      - uses: docker/setup-buildx-action@v2
+        
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/testrepo:latest
+  aws_compute:
+    needs: [ingest, compute]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Create ingestion environment
+        uses: conda-incubator/setup-miniconda@v2.1.1
+        with:
+          miniconda-version: 'latest'
+          channels: conda-forge
+          environment-file: environment_ingest.yml
+      - name: Queue Spot job
+        shell: bash -l {0}
+        run: |
+        python aws.py spot --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }}
