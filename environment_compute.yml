@@ -6,3 +6,4 @@ dependencies:
   - python
   - pandas
   - boto3
+  - pyarrow
