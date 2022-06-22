@@ -1,172 +1,288 @@
-import argparse
+from io import BytesIO
+import json
 import boto3
-import sys
+import pandas as pd
 
 
-def get_client(client_type: str, access_key: str, secret_key: str) -> boto3.client:
+class AWSActions:
     """
-    Authneticates session and gets correct client type per argparse arguments.
-    Inputs:
-        client_type (str): type of boto3 client to init.
-        acces_key (str): AWS acces key
-        secret_key (str): AWS secret key
-    Ouputs:
-        client(boto3.client): session with correct service
+    Wraps all of our needed AWS functions, state for clients and credentials.
     """
 
-    session = boto3.Session(
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-    )
+    def __init__(self, access_key: str, secret_key: str, bucket: str = None) -> None:
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self.bucket = bucket
+        self.s3_client = self.get_client('s3')
+        self.batch_client = self.get_client('batch')
+        self.iam_client = self.get_client('s3')
 
-    if client_type == 'batch':
-        client = session.client(client_type, region_name='us-east-2')
-    else:
-        client = session.client(client_type)
+    def get_client(self, client_type: str) -> boto3.client:
+        """
+        Authneticates session and gets correct client type per argparse arguments.
+        Inputs:
+            client_type (str): type of boto3 client to init.
+        Ouputs:
+            client(boto3.client): session with correct service
+        """
 
-    return client
+        session = boto3.Session(
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+        )
+
+        if client_type == 'batch':
+            client = session.client(client_type, region_name='us-east-2')
+        else:
+            client = session.client(client_type)
+
+        return client
 
 
-def file_actions(client: boto3.client, file_function: str):
-    """
-    Determines whether uploading/downloading to AWS
-    and runs the correct function from the client.
-    Inputs:
-        client (boto3.client): client to fetch functions from
-        file_function (str): 'upload' or 'download', from args.action.
-    Outputs:
-        response: response from the AWS bucket
+    def upload_file(self, key: str, df: pd.DataFrame) -> None:
+        """
+        Uploads a dataframe to S3 from memory.
+        Inputs:
+            key (str): The name of the file-to-be on S3.
+        """
 
-    """
+        buffer = BytesIO()
+        df.to_parquet(buffer, index=False, compression='gzip')
 
-    func = getattr(client, file_function + '_file')
-    response = func(
-        Filename=args.path,
-        Bucket=args.bucket,
-        Key=args.key
-    )
+        self.s3_client.put_object(
+            Bucket=self.bucket,
+            Key=f'{key}.parquet.gzip',
+            Body=buffer.getvalue()
+            )
 
-    return response
 
-def create_job_criterion(batch_client: boto3.client, iam_client: boto3.client):
-    """
-    Creates a compute environment, a job definition,
-    a job queue, and starts a batch job on an Spot instance.
-    Inputs:
-        client (boto3.client): boto3 batch client
-    """
+    def download_file(self, key: str) -> pd.DataFrame:
+        """
+        Downloads a file from S3 and returns it as a pandas dataframe.
+        Inputs:
+            key (str): name of file to be downloaded
+        """
+        file = self.s3_client.get_object(
+            Bucket=self.bucket,
+            Key=f'{key}.parquet.gzip')
 
-    response = batch_client.create_compute_environment(
-    computeEnvironmentName='compute_env',
-    type='MANAGED',
-    state='ENABLED',
-    computeResources={
-        'type': 'SPOT',
-        'allocationStrategy': 'SPOT_CAPACITY_OPTIMIZED',
-        'maxvCpus': 256,
-        'desiredvCpus': 123,
-        'instanceTypes': [
-            'optimal',
-        ],
-        'imageId': 'string',
-        'subnets': [
-            'string',
-        ],
-        'bidPercentage': 50,
-        'spotIamFleetRole': 'string'
-    },
-    serviceRole='string'
-    )
+        df = pd.read_parquet(BytesIO(file['Body'].read()))
 
-    response = batch_client.create_job_queue(
-    jobQueueName='compute_env_queue',
-    state='ENABLED',
-    priority=1,
-    computeEnvironmentOrder=[
-        {
-            'order': 100,
-            'computeEnvironment': 'compute_env'
+        return df
+
+
+    def create_compute_env(self) -> dict:
+        """
+        Creates a compute environment for a SPOT batch job.
+        Helper for check_criterion().
+        Ouputs:
+            response (dict): dictionary of response info
+        """
+
+        response = self.batch_client.create_compute_environment(
+        computeEnvironmentName='compute_env',
+        type='MANAGED',
+        state='ENABLED',
+        computeResources={
+            'type': 'SPOT',
+            'allocationStrategy': 'SPOT_CAPACITY_OPTIMIZED',
+            'maxvCpus': 256,
+            'desiredvCpus': 124,
+            'instanceRole': 'ecsInstanceRole',
+            'instanceTypes': [
+                'optimal',
+            ],
+            'subnets': [
+                'string',
+            ],
+            'bidPercentage': 50,
+            'spotIamFleetRole': 'arn:aws:iam::921974715484:role/AmazonEC2SpotFleetRole'
         },
-    ],
-)
+        serviceRole='arn:aws:iam::921974715484:role/service-role/AWSBatchServiceRole',
+        )
 
-    compute_role = iam.get_role(RoleName='computeRole')
+        return response
 
-    response = client.register_job_definition(
-    jobDefinitionName='compute_job_definition',
-    type='container',
-    containerProperties={
-        'image': 'angwar26/testrepo:latest',
-        'memory': 256,
-        'vcpus': 16,
-        'jobRoleArn': compute_role['Role']['Arn'],
-        'executionRoleArn': compute_role['Role']['Arn'],
-        'environment': [
+
+    def create_queue(self) -> dict:
+        """
+        Creates a Job Queue for batch jobs.
+        Helper for check_criterion().
+        Ouputs:
+            response (dict): dictionary of response info
+        """
+
+        response = self.batch_client.create_job_queue(
+            jobQueueName='compute_queue',
+            state='ENABLED',
+            priority=1,
+            computeEnvironmentOrder=[
+                {
+                    'order': 100,
+                    'computeEnvironment': 'compute_env'
+                    },
+                ],
+            )
+
+        return response
+
+
+    def create_job_def(self) -> dict:
+        """
+        Creates a Job definition for a batch job.
+        Helper for check_criterion().
+        Ouputs:
+            response (dict): dictionary of response info
+        """
+        compute_role = self.iam_client.get_role(RoleName='compute_role')
+
+        response = self.batch_client.register_job_definition(
+            jobDefinitionName='compute_job_definition',
+            type='container',
+            containerProperties={
+                'image': 'angwar26/testrepo:latest',
+                'memory': 256,
+                'vcpus': 16,
+                'jobRoleArn': compute_role['Role']['Arn'],
+                'executionRoleArn': compute_role['Role']['Arn']
+                },
+            )
+
+        return response
+
+
+    def create_roles(self) -> dict:
+        """
+        Creates roles with the necessar permissions for running a SPOT batch job.
+        Helper for check_criterion().
+        Ouputs:
+            response (dict): dictionary of response info
+        """
+
+        service_linked_role_policy = {
+        "Version":"2012-10-17",
+        "Statement": [
             {
-                'name': 'AWS_DEFAULT_REGION',
-                'value': 'ap-northeast-1',
+            "Sid":"",
+            "Effect":"Allow",
+            "Principal": {
+                "Service": "spotfleet.amazonaws.com"
+            },
+            "Action":"sts:AssumeRole"
             }
-        ]
-    },
-)
-
-
-
-def check_criterion(batch_client: boto3.client, iam_client: boto3.client):
-    env_response = batch_client.describe_compute_environments(
-        computeEnvironments=[
-            'compute_env',
             ]
-    )
-    job_response = batch_client.describe_job_definition(
-    )
-    queue_response = batch_client.describe_job_definition(
+        }
 
-    )
+        assume_role_policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {
+                    "Service": "ecs-tasks.amazonaws.com"
+                },
+                "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+
+        response = self.iam_client.create_role(
+            RoleName='compute_role',
+            AssumeRolePolicyDocument=json.dumps(assume_role_policy)
+            )
+
+        self.iam_client.attach_role_policy(
+            RoleName=response['Role']['RoleName'],
+            PolicyArn='arn:aws:iam::aws:policy/AmazonS3FullAccess'
+            )
+        """
+        response = iam_client.create_role(
+            RoleName='SpotFleetTaggingRole ',
+            AssumeRolePolicyDocument=json.dumps(service_linked_role_policy)
+            )
+
+        iam_client.attach_role_policy(
+            PolicyArn='arn:aws::iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole'
+            RoleName=response['Role']['RoleName']
+        )
+
+        response = iam_client.create_service_linked_role(
+            AWSServiceName='spotfleet.amazonaws.com',
+            Description='Role for Spot Fleet Tagging.'
+            )
+        """
+
+        return response
 
 
+    def check_criterion(self) -> bool:
+        """
+        Checks whether job criterion exists, creates criterion if not.
+        Helper for spot_job().
+        Ouputs:
+            True or False (boolean): True if all iterables exist,
+                                    False otherwise.
+        """
 
-def run_job(batch_client: boto3.client):
+        try:
+            role_response = self.iam_client.get_role('compute_role')
+        except:
+            role_response = self.create_roles()
 
-    response = client.submit_job(
-        jobDefinition='compute_job_definition',
-        jobName='job',
-        jobQueue='compute_env_queue'
-)
+        env_response = self.batch_client.describe_compute_environments(
+            computeEnvironments=['compute_env'])
 
-if __name__ == "__main__":
+        job_response = self.batch_client.describe_job_definition(
+            jobDefinitions=['compute_job_definition'])
 
-    parser = argparse.ArgumentParser()
+        queue_response = self.batch_client.describe_job_queues(
+            jobQueues=['compute_queue'])
 
-    # options for control flow
-    parser.add_argument('action', choices=['upload','download', 'spot'],
-                        help='Upload/Download to an AWS bucket or \
-                        run compute.py in an AWS spot instance.')
+        if not queue_response['jobQueues']:
+            queue_response = self.create_queue()
 
-    # always required to authenticate
-    parser.add_argument('--access', dest = 'access', required=True,
-                        help='The AWS users access key.')
-    parser.add_argument('--secret', dest = 'secret', required=True,
-                        help='The AWS users secret acess key.')
+        if not job_response['jobDefinitions']:
+            job_response = self.create_job_def()
 
-    # extra flags for upload/download
-    parser.add_argument('--bucket', dest='bucket', required='upload' or 'download' in sys.argv,
-                        help='The name of the AWS bucket.')
-    parser.add_argument('--key',  dest = 'key', required='upload' or 'download' in sys.argv,
-                        help='Is filename to-be on server for upload. \
-                        Is filename to-be on local for download.')
-    parser.add_argument('--path', dest='path', required='upload' or 'download' in sys.argv,
-                        help='For upload is the path to be uploaded.\
-                        For download is the path to be downloaded to.')
+        if not env_response['computeEnvironments']:
+            env_response = self.create_compute_env()
 
-    args = parser.parse_args()
+        return all(queue_response,job_response, env_response, role_response)
 
 
-    if args.action in ('upload','download'):
-        client = get_client('s3', args.access, args.secret)
-        response = file_actions(client, args.action)
-    else:
-        batch_client = get_client('batch', args.access, args.secret)
-        iam_client = get_client('iam', args.access, args.secret)
+    def submit_job(self) -> dict:
+        """
+        Submits SPOT batch job with all necessary info.
+        Helper for spot_job()
+        Inputs:
+            batch_client (boto3.client): boto3 batch client
+        Ouputs:
+            response (dict): dictionary of response info
+        """
 
-        create_job(batch_client, iam_client)
+        response = self.batch_client.submit_job(
+            jobDefinition='compute_job_definition',
+            jobName='job',
+            jobQueue='compute_env_queue'
+        )
+
+        return response
+
+
+    def spot_job(self) -> dict:
+        """
+        Brings together all constituent functions for running SPOT batch job.
+        Gaurantees job criterion with check_criterion() and submits job with
+        submit_job().
+        Inputs:
+            batch_client (boto3.client): boto3 batch client
+            iam_client (boto3.client): boto3 iam client
+        Ouputs:
+            response (dict): dictionary of response info
+        """
+        responses = self.check_criterion()
+
+        if responses:
+            response = self.submit_job()
+
+        return response
