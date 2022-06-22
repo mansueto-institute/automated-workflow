@@ -10,14 +10,12 @@ class AWSActions:
     """
 
     def __init__(self, access_key: str, secret_key: str, bucket: str = None) -> None:
-        self.access_key = access_key
-        self.secret_key = secret_key
         self.bucket = bucket
-        self.s3_client = self.get_client('s3')
-        self.batch_client = self.get_client('batch')
-        self.iam_client = self.get_client('s3')
+        self.s3_client = self.get_client(access_key, secret_key, 's3')
+        self.batch_client = self.get_client(access_key, secret_key, 'batch')
+        self.iam_client = self.get_client(access_key, secret_key, 's3')
 
-    def get_client(self, client_type: str) -> boto3.client:
+    def get_client(self, access_key: str, secret_key:str, client_type: str) -> boto3.client:
         """
         Authneticates session and gets correct client type per argparse arguments.
         Inputs:
@@ -27,8 +25,8 @@ class AWSActions:
         """
 
         session = boto3.Session(
-            aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
         )
 
         if client_type == 'batch':
@@ -93,7 +91,8 @@ class AWSActions:
                 'optimal',
             ],
             'subnets': [
-                'string',
+                'subnet-0e1926a2bd73d8fb7',
+                'subnet-08a70fa35285412a1'
             ],
             'bidPercentage': 50,
             'spotIamFleetRole': 'arn:aws:iam::921974715484:role/AmazonEC2SpotFleetRole'
