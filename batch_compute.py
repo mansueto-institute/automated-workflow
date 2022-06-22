@@ -6,9 +6,9 @@ client = boto3.client('s3')
 
 file = client.get_object(
     Bucket='mansueto-workflow-testing',
-    Key='df.csv')
+    Key='df.parquet.gzip')
 
-df = pd.read_csv(BytesIO(file['Body'].read()))
+df = pd.read_parquet(BytesIO(file['Body'].read()))
 
 df['new_column'] = df.WARD * df.WARD
 
