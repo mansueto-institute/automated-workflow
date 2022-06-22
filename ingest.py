@@ -8,7 +8,7 @@ def ingest(url: str, actor: aws.AWSActions):
     """
 
     df = pd.read_csv(url)
-    actor.upload_file(df, 'df')
+    actor.upload_file('df', df)
 
 
 if __name__ == "__main__":

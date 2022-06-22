@@ -10,7 +10,7 @@ def compute(actor: aws.AWSActions):
 
     df['new_column'] = df.WARD * df.WARD
 
-    actor.upload_file(df, 'df')
+    actor.upload_file('df', df)
 
 
 if __name__ == "__main__":
