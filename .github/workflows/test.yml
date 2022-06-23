@@ -42,18 +42,17 @@ jobs:
         with:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/testrepo:latest
-  #aws_compute:
-  #  needs: [ingest, compute]
-  #  runs-on: ubuntu-latest
-  #  steps:
-  #    - uses: actions/checkout@v2
-  #    - name: Create ingestion environment
-  #      uses: conda-incubator/setup-miniconda@v2.1.1
-  #      with:
-  #        miniconda-version: 'latest'
-  #        channels: conda-forge
-  #        environment-file: environment_ingest.yml
-  #    - name: Queue Spot job
-  #      shell: bash -l {0}
-  #      run: |
-  #        python aws.py spot --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }}
+  aws_compute:
+    needs: [ingest, build_docker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Create Batch environment
+        uses: conda-incubator/setup-miniconda@v2.1.1
+        with:
+          miniconda-version: 'latest'
+          channels: conda-forge
+          environment-file: environment_compute.yml
+      - name: Queue Spot job
+        shell: bash -l {0}
+        run: python batch.py --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }}

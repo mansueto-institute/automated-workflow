@@ -13,7 +13,7 @@ class AWSActions:
         self.bucket = bucket
         self.s3_client = self.get_client(access_key, secret_key, 's3')
         self.batch_client = self.get_client(access_key, secret_key, 'batch')
-        self.iam_client = self.get_client(access_key, secret_key, 's3')
+        self.iam_client = self.get_client(access_key, secret_key, 'iam')
 
     def get_client(self, access_key: str, secret_key:str, client_type: str) -> boto3.client:
         """
@@ -45,11 +45,11 @@ class AWSActions:
         """
 
         buffer = BytesIO()
-        df.to_parquet(buffer, index=False, compression='gzip')
+        df.to_parquet(buffer, index=False)
 
         self.s3_client.put_object(
             Bucket=self.bucket,
-            Key=f'{key}.parquet.gzip',
+            Key=f'{key}.parquet',
             Body=buffer.getvalue()
             )
 
@@ -62,7 +62,7 @@ class AWSActions:
         """
         file = self.s3_client.get_object(
             Bucket=self.bucket,
-            Key=f'{key}.parquet.gzip')
+            Key=f'{key}.parquet')
 
         df = pd.read_parquet(BytesIO(file['Body'].read()))
 
@@ -78,24 +78,29 @@ class AWSActions:
         """
 
         response = self.batch_client.create_compute_environment(
-        computeEnvironmentName='compute_env',
+        computeEnvironmentName='compute_test',
         type='MANAGED',
         state='ENABLED',
         computeResources={
             'type': 'SPOT',
             'allocationStrategy': 'SPOT_CAPACITY_OPTIMIZED',
-            'maxvCpus': 256,
-            'desiredvCpus': 124,
-            'instanceRole': 'ecsInstanceRole',
+            'maxvCpus': 4,
+            'minvCpus': 2,
+            'desiredvCpus': 2,
+            'instanceRole': 'arn:aws:iam::921974715484:instance-profile/ecsInstanceRole',
             'instanceTypes': [
                 'optimal',
             ],
-            'subnets': [
-                'subnet-0e1926a2bd73d8fb7',
-                'subnet-08a70fa35285412a1'
+            'securityGroupIds': [
+                'sg-3b786b54'
             ],
-            'bidPercentage': 50,
-            'spotIamFleetRole': 'arn:aws:iam::921974715484:role/AmazonEC2SpotFleetRole'
+            'subnets': [
+                'subnet-6b457803',
+                'subnet-fa650e80',
+                'subnet-9c7daed0'
+            ],
+            'bidPercentage': 60,
+            #'spotIamFleetRole': 'arn:aws:iam::921974715484:role/AmazonEC2SpotFleetRole'
         },
         serviceRole='arn:aws:iam::921974715484:role/service-role/AWSBatchServiceRole',
         )
@@ -118,7 +123,7 @@ class AWSActions:
             computeEnvironmentOrder=[
                 {
                     'order': 100,
-                    'computeEnvironment': 'compute_env'
+                    'computeEnvironment': 'compute_test'
                     },
                 ],
             )
@@ -140,10 +145,18 @@ class AWSActions:
             type='container',
             containerProperties={
                 'image': 'angwar26/testrepo:latest',
-                'memory': 256,
-                'vcpus': 16,
                 'jobRoleArn': compute_role['Role']['Arn'],
-                'executionRoleArn': compute_role['Role']['Arn']
+                'executionRoleArn': compute_role['Role']['Arn'],
+                'resourceRequirements': [
+                    {
+                        'type': 'MEMORY',
+                        'value': '8192',
+                        },
+                    {
+                        'type': 'VCPU',
+                        'value': '2',
+                        },
+                        ],
                 },
             )
 
@@ -157,20 +170,6 @@ class AWSActions:
         Ouputs:
             response (dict): dictionary of response info
         """
-
-        service_linked_role_policy = {
-        "Version":"2012-10-17",
-        "Statement": [
-            {
-            "Sid":"",
-            "Effect":"Allow",
-            "Principal": {
-                "Service": "spotfleet.amazonaws.com"
-            },
-            "Action":"sts:AssumeRole"
-            }
-            ]
-        }
 
         assume_role_policy = {
         "Version": "2012-10-17",
@@ -194,22 +193,10 @@ class AWSActions:
             RoleName=response['Role']['RoleName'],
             PolicyArn='arn:aws:iam::aws:policy/AmazonS3FullAccess'
             )
-        """
-        response = iam_client.create_role(
-            RoleName='SpotFleetTaggingRole ',
-            AssumeRolePolicyDocument=json.dumps(service_linked_role_policy)
+        self.iam_client.attach_role_policy(
+            RoleName=response['Role']['RoleName'],
+            PolicyArn='arn:aws:iam::aws:policy/CloudWatchFullAccess'
             )
-
-        iam_client.attach_role_policy(
-            PolicyArn='arn:aws::iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole'
-            RoleName=response['Role']['RoleName']
-        )
-
-        response = iam_client.create_service_linked_role(
-            AWSServiceName='spotfleet.amazonaws.com',
-            Description='Role for Spot Fleet Tagging.'
-            )
-        """
 
         return response
 
@@ -224,21 +211,18 @@ class AWSActions:
         """
 
         try:
-            role_response = self.iam_client.get_role('compute_role')
+            role_response = self.iam_client.get_role(RoleName='compute_role')
         except:
             role_response = self.create_roles()
 
         env_response = self.batch_client.describe_compute_environments(
-            computeEnvironments=['compute_env'])
+            computeEnvironments=['compute_test'])
 
-        job_response = self.batch_client.describe_job_definition(
+        job_response = self.batch_client.describe_job_definitions(
             jobDefinitions=['compute_job_definition'])
 
         queue_response = self.batch_client.describe_job_queues(
             jobQueues=['compute_queue'])
-
-        if not queue_response['jobQueues']:
-            queue_response = self.create_queue()
 
         if not job_response['jobDefinitions']:
             job_response = self.create_job_def()
@@ -246,7 +230,10 @@ class AWSActions:
         if not env_response['computeEnvironments']:
             env_response = self.create_compute_env()
 
-        return all(queue_response,job_response, env_response, role_response)
+        if not queue_response['jobQueues']:
+            queue_response = self.create_queue()
+
+        return all([queue_response,job_response, env_response, role_response])
 
 
     def submit_job(self) -> dict:
@@ -262,7 +249,7 @@ class AWSActions:
         response = self.batch_client.submit_job(
             jobDefinition='compute_job_definition',
             jobName='job',
-            jobQueue='compute_env_queue'
+            jobQueue='compute_queue'
         )
 
         return response

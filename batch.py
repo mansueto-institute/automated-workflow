@@ -1,8 +1,10 @@
 import argparse
 import aws
 
-def batch(actor: aws.AWSActions) -> None:
+def batch(actor: aws.AWSActions) -> dict:
     response = actor.spot_job()
+
+    return response
 
 
 if __name__ == "__main__":
@@ -17,6 +19,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    actor = aws.AWSActions(args.access, args.secret, args.bucket)
+    actor = aws.AWSActions(args.access, args.secret)
 
     batch(actor)
