@@ -2,17 +2,22 @@ name: test
 on: [push]
 jobs:
   ingest:
+  # runs ingest job on Ubuntu machine
     runs-on: ubuntu-latest
     steps:
+    # Checkout the repo so we can refernce files in it through the script
       - uses: actions/checkout@v2
       - name: Create ingestion environment
+      # creates a conda env from environment_ingest.yml
+      # for use onthe Github Actions machine
         uses: conda-incubator/setup-miniconda@v2.1.1
         with:
           miniconda-version: 'latest'
           channels: conda-forge
           environment-file: environment_ingest.yml
       - name: Ingest Data
-        shell: bash -l {0}
+        shell: bash -l {0} # logs into the bash shell. {0} is a placeholder GA fills in at runtime.
+        # runs the ingestion script
         run: python ingest.py --bucket ${{ secrets.AWS_BUCKET }} --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }}
   compute:
     needs: ingest
@@ -31,6 +36,7 @@ jobs:
   build_docker:
       runs-on: ubuntu-latest
       steps:
+      # logs into DockerHub
       - uses: docker/setup-buildx-action@v2
       - name: Login to DockerHub
         uses: docker/login-action@v2
@@ -38,11 +44,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push
+      # Builds Docker image from Dockerfile and uploads to DockerHub.
         uses: docker/build-push-action@v3
         with:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/testrepo:latest
+          # testrepo is the name of the repo, and latest is the version of the image
   aws_compute:
+    # needs ingest and build_docker to complete successfully before starting
     needs: [ingest, build_docker]
     runs-on: ubuntu-latest
     steps:
@@ -55,4 +64,6 @@ jobs:
           environment-file: environment_compute.yml
       - name: Queue Spot job
         shell: bash -l {0}
-        run: python batch.py --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }}
+        run: |
+        python batch.py --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} \
+        --maxcpu 4 --desiredcpu 2 --mincpu 2 --memory 8192 --docker 'angwar26/testrepo:latest'
