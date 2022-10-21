@@ -9,11 +9,18 @@ class AWSActions:
     Wraps all of our needed AWS functions, state for clients and credentials.
     """
 
-    def __init__(self, access_key: str, secret_key: str, bucket: str = None) -> None:
+    def __init__(self, access_key: str, secret_key: str, bucket: str = None,
+                 maxvcpus: int = 4, desiredvcpus: int = 2, minvcpus: int = 2,
+                 memory: int = 8192, docker: str = None) -> None:
         self.bucket = bucket
         self.s3_client = self.get_client(access_key, secret_key, 's3')
         self.batch_client = self.get_client(access_key, secret_key, 'batch')
         self.iam_client = self.get_client(access_key, secret_key, 'iam')
+        self.maxvcpus = maxvcpus
+        self.desiredvcpus = desiredvcpus
+        self.minvcpus = minvcpus
+        self.memory = memory
+        self.docker = docker
 
     def get_client(self, access_key: str, secret_key:str, client_type: str) -> boto3.client:
         """
@@ -73,6 +80,8 @@ class AWSActions:
         """
         Creates a compute environment for a SPOT batch job.
         Helper for check_criterion().
+        To read AWS Documentation regarding this function see:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/batch.html?highlight=batch#Batch.Client.create_compute_environment
         Ouputs:
             response (dict): dictionary of response info
         """
@@ -84,9 +93,9 @@ class AWSActions:
         computeResources={
             'type': 'SPOT',
             'allocationStrategy': 'SPOT_CAPACITY_OPTIMIZED',
-            'maxvCpus': 4,
-            'minvCpus': 2,
-            'desiredvCpus': 2,
+            'maxvCpus': self.maxvcpus,
+            'minvCpus': self.minvcpus,
+            'desiredvCpus': self.desiredvcpus,
             'instanceRole': 'arn:aws:iam::921974715484:instance-profile/ecsInstanceRole',
             'instanceTypes': [
                 'optimal',
@@ -112,6 +121,8 @@ class AWSActions:
         """
         Creates a Job Queue for batch jobs.
         Helper for check_criterion().
+        To read AWS documentation regarding this function see:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/batch.html?highlight=batch#Batch.Client.create_job_queue
         Ouputs:
             response (dict): dictionary of response info
         """
@@ -135,6 +146,8 @@ class AWSActions:
         """
         Creates a Job definition for a batch job.
         Helper for check_criterion().
+        To read AWS documentation regarding this function see:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/batch.html?highlight=batch#Batch.Client.register_job_definition
         Ouputs:
             response (dict): dictionary of response info
         """
@@ -144,17 +157,17 @@ class AWSActions:
             jobDefinitionName='compute_job_definition',
             type='container',
             containerProperties={
-                'image': 'angwar26/testrepo:latest',
+                'image': self.docker,
                 'jobRoleArn': compute_role['Role']['Arn'],
                 'executionRoleArn': compute_role['Role']['Arn'],
                 'resourceRequirements': [
                     {
                         'type': 'MEMORY',
-                        'value': '8192',
+                        'value': str(self.memory),
                         },
                     {
                         'type': 'VCPU',
-                        'value': '2',
+                        'value': str(self.minvcpus),
                         },
                         ],
                 },
@@ -167,6 +180,9 @@ class AWSActions:
         """
         Creates roles with the necessar permissions for running a SPOT batch job.
         Helper for check_criterion().
+        To read AWS documentation on the functions used:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/iam.html#IAM.Client.create_role
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/iam.html#IAM.Client.attach_role_policy
         Ouputs:
             response (dict): dictionary of response info
         """
