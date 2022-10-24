@@ -2,7 +2,7 @@ name: test
 on:
   schedule:
     # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
-    - cron: '14 * * * 1'
+    - cron: '01 * * * 1'
 jobs:
   ingest:
   # runs ingest job on Ubuntu machine
