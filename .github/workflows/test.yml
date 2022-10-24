@@ -1,5 +1,8 @@
 name: test
-on: [push]
+on:
+  schedule:
+    # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
+    - cron: '14 * * * 1'
 jobs:
   ingest:
   # runs ingest job on Ubuntu machine
@@ -50,20 +53,21 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/testrepo:latest
           # testrepo is the name of the repo, and latest is the version of the image
-  aws_compute:
-    # needs ingest and build_docker to complete successfully before starting
-    needs: [ingest, build_docker]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Create Batch environment
-        uses: conda-incubator/setup-miniconda@v2.1.1
-        with:
-          miniconda-version: 'latest'
-          channels: conda-forge
-          environment-file: environment_compute.yml
-      - name: Queue Spot job
-        shell: bash -l {0}
-        run: |
-        python batch.py --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} \
-        --maxcpu 4 --desiredcpu 2 --mincpu 2 --memory 8192 --docker 'angwar26/testrepo:latest'
+ # we're not running this part of our job for now
+ # aws_compute:
+ #   # needs ingest and build_docker to complete successfully before starting
+ #   needs: [ingest, build_docker]
+ #   runs-on: ubuntu-latest
+ #   steps:
+ #     - uses: actions/checkout@v2
+ #     - name: Create Batch environment
+ #       uses: conda-incubator/setup-miniconda@v2.1.1
+ #       with:
+ #         miniconda-version: 'latest'
+ #         channels: conda-forge
+ #         environment-file: environment_compute.yml
+ #     - name: Queue Spot job
+ #       shell: bash -l {0}
+ #       run: |
+ #       python batch.py --access ${{ secrets.AWS_ACCESS }} --secret ${{ secrets.AWS_SECRET }} \
+ #       --maxcpu 4 --desiredcpu 2 --mincpu 2 --memory 8192 --docker 'angwar26/testrepo:latest'
