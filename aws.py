@@ -1,6 +1,8 @@
 from io import BytesIO
 import json
+import re
 import boto3
+import botocore
 import pandas as pd
 
 
@@ -10,9 +12,10 @@ class AWSActions:
     """
 
     def __init__(self, access_key: str, secret_key: str, bucket: str = None,
-                 maxvcpus: int = 4, desiredvcpus: int = 2, minvcpus: int = 2,
-                 memory: int = 8192, docker: str = None) -> None:
+                 region: str = 'us-east-2', maxvcpus: int = 4, desiredvcpus: int = 2,
+                 minvcpus: int = 2, memory: int = 8192, docker: str = None) -> None:
         self.bucket = bucket
+        self.region = region
         self.s3_client = self.get_client(access_key, secret_key, 's3')
         self.batch_client = self.get_client(access_key, secret_key, 'batch')
         self.iam_client = self.get_client(access_key, secret_key, 'iam')
@@ -36,12 +39,35 @@ class AWSActions:
             aws_secret_access_key=secret_key,
         )
 
-        if client_type == 'batch':
-            client = session.client(client_type, region_name='us-east-2')
-        else:
-            client = session.client(client_type)
+        client = session.client(client_type, region_name=self.region)
 
         return client
+
+
+    def handle_bucket(self):
+        """
+        Creates a bucket if it doesn't exist with what's probably some sane defaults.
+        Uses self.bucket for bucket name.
+        To read AWS Documentation:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.create_bucket
+        Inputs:
+            region (str): the region for the bucket to be created in.
+        """
+
+        try:
+            self.s3_client.head_bucket(
+                Bucket=self.bucket,
+                )
+
+        except botocore.exceptions.ClientError:
+            self.s3_client.create_bucket(
+            ACL='private',
+            Bucket=self.bucket,
+            CreateBucketConfiguration={
+                'LocationConstraint': self.region
+                },
+            ObjectOwnership='BucketOwnerEnforced'
+            )
 
 
     def upload_file(self, key: str, df: pd.DataFrame) -> None:
