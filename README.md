@@ -50,6 +50,7 @@ This declares that the `aws_compute` job requires the `ingest` and `build_docker
 
 This project uploads from AWS buckets, downloads from AWS buckets, controls IAMs, creates the necessary environments for Batch jobs, and then submits them. The AWS Access Code and Secret key must be in the repository's secrets. The most important part of our script is the part that creates a Compute Environment, a Job Definition, a Role, and a Queue for the Batch job.
 
+
 Prerequisites:
 
  - AWS user with permissions to access S3, Batch, IAMs.
@@ -58,12 +59,16 @@ Prerequisites:
         - https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_change-permissions.html
     - Specific IAMs permissions required: `AWSBatchFullAccess`, `AmazonS3FullAccess`, `IAMFullAccess`, and `AmazonEC2ContainerRegistryFullAccess` if needed
  - Docker Image for batch job
+    - Here is a good introduction to building Docker images: https://devopscube.com/build-docker-image/
 
-There are a few details to get into regarding the creation of the prequuisites to creating a batch job, a compute environment in particular, that will be helpful information for beginners.
+There are a few details to get into regarding the creation of the prequisites to creating a batch job hat will be helpful information for beginners:
 
-In particular, a compute environment has two required parameters, `SecurityGroupIds` and `subnets`. It's important to know that both of these parameters must be on the same VPC. Read more about VPCs, security groups, and subnets:
-- VPC: https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html
-- Subnets: https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html
-- Security groups: https://docs.aws.amazon.com/managedservices/latest/userguide/about-security-groups.html
+- If you do not already have a bucket for your project created, our tool will create one with whatver name you pass. Before picking a name for your bucket, please review the S3 naming guidelines: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
+
+
+- A compute environment has two required parameters (among others), `SecurityGroupIds` and `subnets`. It's important to know that both of these parameters must be on the same VPC. Read more about VPCs, security groups, and subnets:
+    - VPC: https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html
+    - Subnets: https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html
+    - Security groups: https://docs.aws.amazon.com/managedservices/latest/userguide/about-security-groups.html
 
 The job is run through a Docker environment that is fetched from DockerHub. The container executes its entry point when the Batch job starts.
