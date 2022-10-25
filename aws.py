@@ -58,7 +58,8 @@ class AWSActions:
             self.s3_client.head_bucket(
                 Bucket=self.bucket,
                 )
-
+        # we can refine how we catch this exception later
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
         except botocore.exceptions.ClientError:
             self.s3_client.create_bucket(
             ACL='private',
