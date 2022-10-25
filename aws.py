@@ -14,6 +14,22 @@ class AWSActions:
     def __init__(self, access_key: str, secret_key: str, bucket: str = None,
                  region: str = 'us-east-2', maxvcpus: int = 4, desiredvcpus: int = 2,
                  minvcpus: int = 2, memory: int = 8192, docker: str = None) -> None:
+        """
+        Required inputs:
+            access_key (str): AWS Access key for user
+            secret_key (str): AWS Secret key for user
+        Optional Inputs:
+            bucket (str): name of bucket to be used, and created if it does not already exist
+            region (str): region where services are to be used. Default is 'us-east-2'
+            maxvcpus (int): number of vcpus to use in batch job
+            desiredvcpus (int): number of desired vcpus to use in batch job
+            minvcpus (int): min number of vcpus for batch job
+            memory (int): hard limit of memory to supply to the container in MiB.
+                          Used in resourceRequirements in create_job_def()
+            docker (str): the name of the docker image to be used in the container.
+                          Ex: angwar26/testrepo:latest where angwar26 is a username,
+                          testrepo is a repository name on DockerHub, and latest is a version.
+        """
         self.bucket = bucket
         self.region = region
         self.s3_client = self.get_client(access_key, secret_key, 's3')
@@ -29,6 +45,8 @@ class AWSActions:
         """
         Authneticates session and gets correct client type per argparse arguments.
         Inputs:
+            access_key (str): AWS Access key for a user
+            secret_key (str): AWS Access key for a user
             client_type (str): type of boto3 client to init.
         Ouputs:
             client(boto3.client): session with correct service
