@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 
-library(tidyverse)
+library(readr)
 library(aws.s3)
 
 args <- commandArgs(trailingOnly = TRUE)
