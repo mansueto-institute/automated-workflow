@@ -1,5 +1,7 @@
 name: test
 on:
+  push:
+    branches: [main]
   schedule:
     # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
     - cron: '01 10,20 * * 1'
