@@ -4,6 +4,16 @@ on:
     # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
     - cron: '01 10,20 * * 1'
 jobs:
+  r_ingest:
+  # proof of concept an R envirinment and job
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-renv@v2
+      name: RIngest
+        run: rjob.R ${{ secrets.AWS_ACCESS }} ${{ secrets.AWS_SECRET }} ${{ secrets.AWS_BUCKET }}
+        shell: Rscript {0}
   ingest:
   # runs ingest job on Ubuntu machine
     runs-on: ubuntu-latest
