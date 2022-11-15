@@ -56,8 +56,8 @@ jobs:
       uses: docker/login-action@v2
       with:
         registry: 921974715484.dkr.ecr.us-east-2.amazonaws.com
-        username: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        username: ${{ secrets.AWS_ACCESS }}
+        password: ${{ secrets.AWS_SECRET }}
     - name: Build and push
     # Builds Docker image from Dockerfile and uploads to DockerHub.
       uses: docker/build-push-action@v3
