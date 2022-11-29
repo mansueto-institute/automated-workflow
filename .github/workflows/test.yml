@@ -5,6 +5,7 @@ on:
   schedule:
     # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
     - cron: '01 10,20 * * 1'
+  workflow_dispatch:
 jobs:
   r_ingest:
   # proof of concept an R envirinment and job
