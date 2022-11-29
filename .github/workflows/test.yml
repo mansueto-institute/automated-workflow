@@ -63,7 +63,7 @@ jobs:
       uses: docker/build-push-action@v3
       with:
         push: true
-        tags: compute_image_repo
+        tags: 921974715484.dkr.ecr.us-east-2.amazonaws.com/compute_image_repo:latest
 #  build_docker:
 #      runs-on: ubuntu-latest
 #      steps:
